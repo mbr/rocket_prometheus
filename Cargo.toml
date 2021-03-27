@@ -13,11 +13,11 @@ readme = "README.md"
 
 [dependencies]
 prometheus = { version = "0.11", default-features = false }
-rocket = { git = "https://github.com/SergioBenitez/Rocket", rev = "c24f15c18f02319be83af4f3c1951dc220b52c5e" }
+rocket = { git = "https://github.com/SergioBenitez/Rocket", rev = "3045e0ac63fd5c4e2e543649c6871d896cbf9c0b" }
 
 [dev-dependencies]
 once_cell = "1.2.0"
-rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", rev = "c24f15c18f02319be83af4f3c1951dc220b52c5e" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", rev = "3045e0ac63fd5c4e2e543649c6871d896cbf9c0b" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["macros"] }
