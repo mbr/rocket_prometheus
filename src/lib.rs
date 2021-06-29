@@ -17,9 +17,10 @@ use rocket_prometheus::PrometheusMetrics;
 
 # async fn docs() {
 let prometheus = PrometheusMetrics::new();
-rocket::ignite()
+rocket::build()
     .attach(prometheus.clone())
     .mount("/metrics", prometheus)
+    .ignite().await.unwrap()
     .launch()
     .await;
 # }
@@ -72,7 +73,6 @@ Further metrics can be tracked by registering them with the registry of the
 extern crate rocket;
 
 use once_cell::sync::Lazy;
-use rocket::http::RawStr;
 use rocket_prometheus::{
     prometheus::{opts, IntCounterVec},
     PrometheusMetrics,
@@ -84,7 +84,7 @@ static NAME_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
 });
 
 #[get("/hello/<name>")]
-pub fn hello(name: &RawStr) -> String {
+pub fn hello(name: &str) -> String {
     NAME_COUNTER.with_label_values(&[name]).inc();
     format!("Hello, {}!", name)
 }
@@ -97,10 +97,11 @@ async fn main() {
         .register(Box::new(NAME_COUNTER.clone()))
         .unwrap();
     # if false {
-    rocket::ignite()
+    rocket::build()
         .attach(prometheus.clone())
         .mount("/", routes![hello])
         .mount("/metrics", prometheus)
+        .ignite().await.unwrap()
         .launch()
         .await;
     # }
@@ -155,9 +156,10 @@ const NAMESPACE_ENV_VAR: &str = "ROCKET_PROMETHEUS_NAMESPACE";
 ///
 /// # async fn docs() {
 /// let prometheus = PrometheusMetrics::new();
-/// rocket::ignite()
+/// rocket::build()
 ///     .attach(prometheus.clone())
 ///     .mount("/metrics", prometheus)
+///     .ignite().await.unwrap()
 ///     .launch()
 ///     .await;
 /// # }
@@ -283,7 +285,7 @@ impl Fairing for PrometheusMetrics {
         }
     }
 
-    async fn on_request(&self, req: &mut Request<'_>, _: &mut Data) {
+    async fn on_request(&self, req: &mut Request<'_>, _: &mut Data<'_>) {
         req.local_cache(|| TimerStart(Some(Instant::now())));
     }
 
@@ -312,7 +314,7 @@ impl Fairing for PrometheusMetrics {
 
 #[rocket::async_trait]
 impl Handler for PrometheusMetrics {
-    async fn handle<'r, 's>(&'s self, req: &'r Request<'_>, _: Data) -> Outcome<'r> {
+    async fn handle<'r>(&self, req: &'r Request<'_>, _: Data<'r>) -> Outcome<'r> {
         // Gather the metrics.
         let mut buffer = vec![];
         let encoder = TextEncoder::new();

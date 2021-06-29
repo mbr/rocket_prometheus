@@ -11,14 +11,13 @@ static NAME_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
 });
 
 mod routes {
-    use rocket::http::RawStr;
-    use rocket_contrib::json::Json;
+    use rocket::serde::json::Json;
     use serde::Deserialize;
 
     use super::NAME_COUNTER;
 
     #[get("/hello/<name>")]
-    pub fn hello(name: &RawStr) -> String {
+    pub fn hello(name: &str) -> String {
         NAME_COUNTER.with_label_values(&[name]).inc();
         format!("Hello, {}!", name)
     }
@@ -41,10 +40,13 @@ async fn main() {
         .registry()
         .register(Box::new(NAME_COUNTER.clone()))
         .unwrap();
-    rocket::ignite()
+    rocket::build()
         .attach(prometheus.clone())
         .mount("/", routes![routes::hello, routes::hello_post])
         .mount("/metrics", prometheus)
+        .ignite()
+        .await
+        .unwrap()
         .launch()
         .await
         .expect("Could not launch Rocket!");

@@ -3,7 +3,7 @@ extern crate rocket;
 
 use once_cell::sync::Lazy;
 use prometheus::{opts, IntCounterVec};
-use rocket::{http::ContentType, local::blocking::Client};
+use rocket::{http::ContentType, local::asynchronous::Client};
 use rocket_prometheus::PrometheusMetrics;
 use serde_json::json;
 
@@ -13,14 +13,13 @@ static NAME_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
 });
 
 mod routes {
-    use rocket::http::RawStr;
-    use rocket_contrib::json::Json;
+    use rocket::serde::json::Json;
     use serde::Deserialize;
 
     use super::NAME_COUNTER;
 
     #[get("/hello/<name>")]
-    pub fn hello(name: &RawStr) -> String {
+    pub fn hello(name: &str) -> String {
         NAME_COUNTER.with_label_values(&[name]).inc();
         format!("Hello, {}!", name)
     }
@@ -39,28 +38,35 @@ mod routes {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn test_basic() {
+
+    #[rocket::async_test]
+    async fn test_basic() {
         let prometheus = PrometheusMetrics::new();
         prometheus
             .registry()
             .register(Box::new(NAME_COUNTER.clone()))
             .unwrap();
-        let rocket = rocket::ignite()
+        let rocket = rocket::build()
             .attach(prometheus.clone())
             .mount("/", routes![routes::hello, routes::hello_post])
-            .mount("/metrics", prometheus);
-        let client = Client::untracked(rocket).expect("valid rocket instance");
-        client.get("/hello/foo").dispatch();
-        client.get("/hello/foo").dispatch();
-        client.get("/hello/bar").dispatch();
+            .mount("/metrics", prometheus)
+            .ignite()
+            .await
+            .unwrap();
+        let client = Client::untracked(rocket)
+            .await
+            .expect("valid rocket instance");
+        client.get("/hello/foo").dispatch().await;
+        client.get("/hello/foo").dispatch().await;
+        client.get("/hello/bar").dispatch().await;
         client
             .post("/hello/bar")
             .header(ContentType::JSON)
             .body(serde_json::to_string(&json!({"age": 50})).unwrap())
-            .dispatch();
-        let metrics = client.get("/metrics").dispatch();
-        let response = metrics.into_string().unwrap();
+            .dispatch()
+            .await;
+        let metrics = client.get("/metrics").dispatch().await;
+        let response = metrics.into_string().await.unwrap();
         assert_eq!(
             response
                 .lines()
